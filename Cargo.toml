@@ -67,7 +67,7 @@ urlencoding = "2.1"
 
 # Performance and metrics
 dashmap = "5.5"
-prometheus = { version = "0.13", optional = true }
+prometheus = { version = "0.14", optional = true }
 
 # Rate limiting
 governor = "0.6"
