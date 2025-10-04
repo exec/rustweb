@@ -123,7 +123,6 @@ pub struct LocationConfig {
     pub auth_basic_user_file: Option<String>,
 }
 
-
 impl Default for ServerConfig {
     fn default() -> Self {
         Self {
