@@ -1,1 +1,77 @@
+# Rust build artifacts
 /target
+**/*.rs.bk
+
+# SSL certificates and keys (test or otherwise)
+ssl/
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+
+# Logs
+*.log
+logs/
+access.log
+error.log
+server.log
+benchmark.log
+
+# Test artifacts
+test_results.json
+test-env/
+*_test.*
+
+# Runtime directories
+/var/
+run/
+pid/
+
+# Configuration overrides
+*-config.toml
+docker-config.toml
+test_config.toml
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Development files
+.env
+.env.local
+.env.*.local
+
+# Package managers
+node_modules/
+.npm
+.yarn/
+
+# Build outputs
+dist/
+build/
+out/
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Coverage reports
+coverage/
+*.coverage
+*.lcov
+
+# Temporary files
+tmp/
+temp/
+.tmp/

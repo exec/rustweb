@@ -11,18 +11,8 @@ RUN apk add --no-cache \
 # Create app directory
 WORKDIR /app
 
-# Copy dependency manifests
-COPY Cargo.toml Cargo.lock ./
-
-# Create a dummy main.rs to build dependencies
-RUN mkdir src && echo "fn main() {}" > src/main.rs
-
-# Build dependencies (this layer will be cached)
-RUN cargo build --release && rm -rf src target/release/deps/rustweb*
-
-# Copy source code
-COPY src ./src
-COPY static ./static
+# Copy all source files
+COPY . .
 
 # Build the application
 RUN cargo build --release --locked

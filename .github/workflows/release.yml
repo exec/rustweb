@@ -216,7 +216,7 @@ jobs:
       - name: Install RPM build tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y rpm
+          sudo apt-get install -y rpm rpm-build
 
       - name: Create RPM build structure
         run: |
@@ -234,7 +234,8 @@ jobs:
 
       - name: Create RPM spec file
         run: |
-          cat > rpmbuild/SPECS/rustweb.spec << 'EOF'
+          CHANGELOG_DATE=$(date +'%a %b %d %Y')
+          cat > rpmbuild/SPECS/rustweb.spec << EOF
           Name:           rustweb
           Version:        0.1.0
           Release:        1%{?dist}
@@ -243,7 +244,6 @@ jobs:
           URL:            https://github.com/your-org/rustweb
           Source0:        %{name}-%{version}.tar.gz
           
-          BuildRequires:  systemd-rpm-macros
           Requires:       systemd
           
           %description
@@ -291,7 +291,7 @@ jobs:
           %attr(0755, rustweb, rustweb) %dir /var/log/rustweb
           
           %changelog
-          * $(date +'%a %b %d %Y') Builder <builder@rustweb.dev> - 0.1.0-1
+          * \$CHANGELOG_DATE Builder <builder@rustweb.dev> - 0.1.0-1
           - Initial RPM package
           EOF
 
