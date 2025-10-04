@@ -1,0 +1,352 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # Build binaries for multiple platforms
+  build:
+    name: Build ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            cross: false
+          - target: x86_64-unknown-linux-musl
+            os: ubuntu-latest
+            cross: true
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+            cross: true
+          - target: aarch64-unknown-linux-musl
+            os: ubuntu-latest
+            cross: true
+          - target: x86_64-pc-windows-gnu
+            os: ubuntu-latest
+            cross: true
+          - target: x86_64-apple-darwin
+            os: macos-latest
+            cross: false
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            cross: false
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install cross-compilation tools
+        if: matrix.cross
+        run: |
+          cargo install cross --git https://github.com/cross-rs/cross
+
+      - name: Configure cross-compilation
+        if: matrix.cross && contains(matrix.target, 'linux')
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-multilib
+
+      - name: Build binary
+        run: |
+          if [[ "${{ matrix.cross }}" == "true" ]]; then
+            cross build --release --target ${{ matrix.target }}
+          else
+            cargo build --release --target ${{ matrix.target }}
+          fi
+
+      - name: Create artifact directory
+        run: mkdir -p artifacts
+
+      - name: Copy binary (Unix)
+        if: "!contains(matrix.target, 'windows')"
+        run: |
+          cp target/${{ matrix.target }}/release/rustweb artifacts/rustweb-${{ matrix.target }}
+          strip artifacts/rustweb-${{ matrix.target }} || true
+
+      - name: Copy binary (Windows)
+        if: contains(matrix.target, 'windows')
+        run: |
+          cp target/${{ matrix.target }}/release/rustweb.exe artifacts/rustweb-${{ matrix.target }}.exe
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: rustweb-${{ matrix.target }}
+          path: artifacts/
+
+  # Build Debian packages
+  build-deb:
+    name: Build Debian package
+    runs-on: ubuntu-latest
+    needs: build
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download x86_64 Linux binary
+        uses: actions/download-artifact@v4
+        with:
+          name: rustweb-x86_64-unknown-linux-gnu
+          path: ./artifacts/
+
+      - name: Download aarch64 Linux binary
+        uses: actions/download-artifact@v4
+        with:
+          name: rustweb-aarch64-unknown-linux-gnu
+          path: ./artifacts/
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y dpkg-dev
+
+      - name: Create Debian package structure
+        run: |
+          mkdir -p debian-package/usr/bin
+          mkdir -p debian-package/etc/rustweb
+          mkdir -p debian-package/etc/systemd/system
+          mkdir -p debian-package/var/www/html
+          mkdir -p debian-package/var/log/rustweb
+          mkdir -p debian-package/var/lib/rustweb
+          mkdir -p debian-package/usr/share/doc/rustweb
+          mkdir -p debian-package/DEBIAN
+
+      - name: Copy files to package
+        run: |
+          cp artifacts/rustweb-x86_64-unknown-linux-gnu debian-package/usr/bin/rustweb
+          chmod +x debian-package/usr/bin/rustweb
+          cp rustweb.toml debian-package/etc/rustweb/
+          cp rustweb.service debian-package/etc/systemd/system/
+          cp README.md debian-package/usr/share/doc/rustweb/
+          cp www/index.html debian-package/var/www/html/
+          
+      - name: Create Debian control file
+        run: |
+          cat > debian-package/DEBIAN/control << EOF
+          Package: rustweb
+          Version: 0.1.0
+          Section: web
+          Priority: optional
+          Architecture: amd64
+          Maintainer: RustWeb Team <team@rustweb.dev>
+          Description: High-performance HTTP server written in Rust
+           RustWeb is a modern, high-performance HTTP server that supports
+           HTTP/1.1, HTTP/2, and HTTP/3 protocols with features like reverse
+           proxy, load balancing, SSL/TLS termination, and compression.
+          Depends: libc6 (>= 2.31)
+          EOF
+
+      - name: Create postinst script
+        run: |
+          cat > debian-package/DEBIAN/postinst << 'EOF'
+          #!/bin/bash
+          set -e
+          
+          # Create rustweb user and group
+          if ! getent group rustweb >/dev/null; then
+              addgroup --system rustweb
+          fi
+          
+          if ! getent passwd rustweb >/dev/null; then
+              adduser --system --no-create-home --ingroup rustweb --shell /bin/false rustweb
+          fi
+          
+          # Set permissions
+          chown -R rustweb:rustweb /var/lib/rustweb /var/log/rustweb
+          chmod 755 /var/www/html
+          chmod 644 /etc/rustweb/rustweb.toml
+          
+          # Enable and start service
+          systemctl daemon-reload
+          systemctl enable rustweb
+          
+          echo "RustWeb installed successfully!"
+          echo "Configuration: /etc/rustweb/rustweb.toml"
+          echo "Start service: systemctl start rustweb"
+          echo "View logs: journalctl -u rustweb"
+          EOF
+          chmod +x debian-package/DEBIAN/postinst
+
+      - name: Create prerm script
+        run: |
+          cat > debian-package/DEBIAN/prerm << 'EOF'
+          #!/bin/bash
+          set -e
+          
+          if [ "$1" = "remove" ]; then
+              systemctl stop rustweb || true
+              systemctl disable rustweb || true
+          fi
+          EOF
+          chmod +x debian-package/DEBIAN/prerm
+
+      - name: Build Debian package
+        run: |
+          dpkg-deb --build debian-package rustweb_0.1.0_amd64.deb
+
+      - name: Upload Debian package
+        uses: actions/upload-artifact@v4
+        with:
+          name: rustweb-deb
+          path: rustweb_0.1.0_amd64.deb
+
+  # Build RPM packages
+  build-rpm:
+    name: Build RPM package
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download x86_64 Linux binary
+        uses: actions/download-artifact@v4
+        with:
+          name: rustweb-x86_64-unknown-linux-gnu
+          path: ./artifacts/
+
+      - name: Install RPM build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y rpm
+
+      - name: Create RPM build structure
+        run: |
+          mkdir -p rpmbuild/{BUILD,RPMS,SOURCES,SPECS,SRPMS}
+          mkdir -p rpmbuild/SOURCES/rustweb-0.1.0
+          
+      - name: Copy source files
+        run: |
+          cp artifacts/rustweb-x86_64-unknown-linux-gnu rpmbuild/SOURCES/rustweb-0.1.0/rustweb
+          cp rustweb.toml rpmbuild/SOURCES/rustweb-0.1.0/
+          cp rustweb.service rpmbuild/SOURCES/rustweb-0.1.0/
+          cp README.md rpmbuild/SOURCES/rustweb-0.1.0/
+          cp -r www rpmbuild/SOURCES/rustweb-0.1.0/
+          cd rpmbuild/SOURCES && tar czf rustweb-0.1.0.tar.gz rustweb-0.1.0/
+
+      - name: Create RPM spec file
+        run: |
+          cat > rpmbuild/SPECS/rustweb.spec << 'EOF'
+          Name:           rustweb
+          Version:        0.1.0
+          Release:        1%{?dist}
+          Summary:        High-performance HTTP server written in Rust
+          License:        MIT
+          URL:            https://github.com/your-org/rustweb
+          Source0:        %{name}-%{version}.tar.gz
+          
+          BuildRequires:  systemd-rpm-macros
+          Requires:       systemd
+          
+          %description
+          RustWeb is a modern, high-performance HTTP server that supports
+          HTTP/1.1, HTTP/2, and HTTP/3 protocols with features like reverse
+          proxy, load balancing, SSL/TLS termination, and compression.
+          
+          %prep
+          %setup -q
+          
+          %install
+          mkdir -p %{buildroot}/usr/bin
+          mkdir -p %{buildroot}/etc/rustweb
+          mkdir -p %{buildroot}/etc/systemd/system
+          mkdir -p %{buildroot}/var/www/html
+          mkdir -p %{buildroot}/var/log/rustweb
+          mkdir -p %{buildroot}/var/lib/rustweb
+          
+          install -m 755 rustweb %{buildroot}/usr/bin/rustweb
+          install -m 644 rustweb.toml %{buildroot}/etc/rustweb/rustweb.toml
+          install -m 644 rustweb.service %{buildroot}/etc/systemd/system/rustweb.service
+          cp -r www/* %{buildroot}/var/www/html/
+          
+          %pre
+          getent group rustweb >/dev/null || groupadd -r rustweb
+          getent passwd rustweb >/dev/null || useradd -r -g rustweb -s /sbin/nologin -d /var/lib/rustweb rustweb
+          
+          %post
+          %systemd_post rustweb.service
+          chown -R rustweb:rustweb /var/lib/rustweb /var/log/rustweb
+          
+          %preun
+          %systemd_preun rustweb.service
+          
+          %postun
+          %systemd_postun_with_restart rustweb.service
+          
+          %files
+          /usr/bin/rustweb
+          %config(noreplace) /etc/rustweb/rustweb.toml
+          /etc/systemd/system/rustweb.service
+          %dir /var/www/html
+          /var/www/html/*
+          %attr(0755, rustweb, rustweb) %dir /var/lib/rustweb
+          %attr(0755, rustweb, rustweb) %dir /var/log/rustweb
+          
+          %changelog
+          * $(date +'%a %b %d %Y') Builder <builder@rustweb.dev> - 0.1.0-1
+          - Initial RPM package
+          EOF
+
+      - name: Build RPM package
+        run: |
+          rpmbuild --define "_topdir $(pwd)/rpmbuild" -ba rpmbuild/SPECS/rustweb.spec
+
+      - name: Upload RPM package
+        uses: actions/upload-artifact@v4
+        with:
+          name: rustweb-rpm
+          path: rpmbuild/RPMS/x86_64/rustweb-0.1.0-1.*.rpm
+
+  # Create GitHub release
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    needs: [build, build-deb, build-rpm]
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./artifacts/
+
+      - name: Create release directory
+        run: |
+          mkdir -p release
+          find artifacts -name "rustweb-*" -type f -exec cp {} release/ \;
+          find artifacts -name "*.deb" -type f -exec cp {} release/ \;
+          find artifacts -name "*.rpm" -type f -exec cp {} release/ \;
+
+      - name: Generate checksums
+        run: |
+          cd release
+          sha256sum * > checksums.txt
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: release/*
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

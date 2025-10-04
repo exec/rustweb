@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>429 Too Many Requests</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; }
+        h1 { color: #d32f2f; }
+        .error-code { font-size: 72px; font-weight: bold; color: #ccc; }
+        .retry-info { background: #f8f9fa; padding: 1rem; border-radius: 4px; margin: 1rem 0; }
+    </style>
+</head>
+<body>
+    <div class="error-code">429</div>
+    <h1>Too Many Requests</h1>
+    <p>You have exceeded the rate limit for this service.</p>
+    <div class="retry-info">
+        <strong>Rate Limit Information:</strong><br>
+        Please wait before making additional requests.<br>
+        Check the 'Retry-After' header for guidance.
+    </div>
+    <p>If you believe this is an error, please contact the server administrator.</p>
+    <hr>
+    <small>RustWeb Server</small>
+</body>
+</html>

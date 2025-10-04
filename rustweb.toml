@@ -1,0 +1,103 @@
+# RustWeb HTTP Server - Production Configuration
+# This configuration follows FHS (Filesystem Hierarchy Standard) conventions
+
+[server]
+listen = ["0.0.0.0:80", "0.0.0.0:443"]
+listen_quic = ["0.0.0.0:443"]
+enable_http3 = true
+worker_threads = 4
+max_connections = 10000
+keep_alive_timeout = 65
+request_timeout = 60
+send_timeout = 60
+client_body_timeout = 60
+client_header_timeout = 60
+client_max_body_size = 1048576  # 1MB
+tcp_nodelay = true
+tcp_fastopen = false
+
+[logging]
+log_level = "info"
+access_log = "/var/log/rustweb/access.log"
+error_log = "/var/log/rustweb/error.log"
+access_log_format = "$remote_addr - $remote_user [$time_local] \"$request\" $status $body_bytes_sent \"$http_referer\" \"$http_user_agent\""
+
+[security]
+enable_rate_limiting = true
+rate_limit_requests_per_second = 1000
+rate_limit_burst = 2000
+max_request_size = 10485760  # 10MB
+allowed_methods = ["GET", "POST", "HEAD", "PUT", "DELETE", "PATCH", "OPTIONS"]
+
+[security.security_headers]
+"X-Frame-Options" = "DENY"
+"X-Content-Type-Options" = "nosniff"
+"X-XSS-Protection" = "1; mode=block"
+"Strict-Transport-Security" = "max-age=31536000; includeSubDomains"
+
+[compression]
+enable_gzip = true
+enable_brotli = true
+enable_zstd = true
+compression_level = 6
+min_compress_size = 1024
+compress_types = [
+    "text/html",
+    "text/css", 
+    "text/javascript",
+    "text/plain",
+    "application/javascript",
+    "application/json",
+    "application/xml",
+    "image/svg+xml"
+]
+
+# Example upstream configuration for load balancing
+[upstream.backend]
+servers = ["http://127.0.0.1:3000", "http://127.0.0.1:3001"]
+load_balancing = "RoundRobin"
+connection_timeout = 5000
+read_timeout = 30000
+
+[upstream.backend.health_check]
+path = "/health"
+interval = 30
+timeout = 5
+healthy_threshold = 2
+unhealthy_threshold = 3
+
+# Default virtual host (serves static files)
+[virtual_hosts.default]
+server_name = ["_"]  # Default catch-all
+document_root = "/var/www/html"
+index_files = ["index.html", "index.htm"]
+
+# SSL configuration for HTTPS
+[virtual_hosts.default.ssl]
+certificate = "/etc/rustweb/ssl/cert.pem"
+private_key = "/etc/rustweb/ssl/key.pem"
+auto_generate_self_signed = false  # Use real certificates in production
+protocols = ["TLSv1.2", "TLSv1.3"]
+
+[virtual_hosts.default.locations."/"]
+document_root = "/var/www/html"
+
+[virtual_hosts.default.locations."/api/"]
+proxy_pass = "backend"
+
+# Example domain-specific virtual host
+[virtual_hosts.example]
+server_name = ["example.com", "www.example.com"]
+document_root = "/var/www/example.com"
+index_files = ["index.html"]
+
+[virtual_hosts.example.ssl]
+certificate = "/etc/rustweb/ssl/example.com.pem"
+private_key = "/etc/rustweb/ssl/example.com.key"
+protocols = ["TLSv1.2", "TLSv1.3"]
+
+[virtual_hosts.example.locations."/"]
+document_root = "/var/www/example.com"
+
+[virtual_hosts.example.locations."/api/"]
+proxy_pass = "backend"

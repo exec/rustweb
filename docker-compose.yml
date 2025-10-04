@@ -1,0 +1,91 @@
+version: '3.8'
+
+services:
+  rustweb:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: rustweb-server
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+      - "8443:8443"
+    volumes:
+      - ./rustweb.toml:/etc/rustweb/rustweb.toml:ro
+      - ./www:/var/www/html:ro
+      - rustweb-logs:/var/log/rustweb
+      - /etc/ssl/certs:/etc/ssl/certs:ro  # SSL certificates from host
+    environment:
+      - RUST_LOG=rustweb=info
+      - TZ=UTC
+    networks:
+      - rustweb-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:noexec,nosuid,size=100m
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '1.0'
+        reservations:
+          memory: 128M
+          cpus: '0.25'
+
+  # Optional: Prometheus for metrics collection
+  prometheus:
+    image: prom/prometheus:v2.45.0
+    container_name: rustweb-prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--web.enable-lifecycle'
+      - '--web.enable-admin-api'
+    networks:
+      - rustweb-network
+    depends_on:
+      - rustweb
+
+  # Optional: Grafana for metrics visualization
+  grafana:
+    image: grafana/grafana:10.0.0
+    container_name: rustweb-grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./monitoring/grafana:/etc/grafana/provisioning:ro
+    networks:
+      - rustweb-network
+    depends_on:
+      - prometheus
+
+networks:
+  rustweb-network:
+    driver: bridge
+
+volumes:
+  rustweb-logs:
+  prometheus-data:
+  grafana-data:

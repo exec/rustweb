@@ -1,0 +1,45 @@
+# Build artifacts
+target/
+**/*.rs.bk
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+
+# Documentation
+README.md
+docs/
+
+# Test files
+tests/
+benches/
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+tmp/
+.tmp/
+
+# Development files
+benchmark.sh
+.env
+.env.local
+
+# CI/CD
+.github/
+
+# Development containers
+docker-compose.yml
+docker-compose.*.yml
