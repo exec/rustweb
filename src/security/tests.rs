@@ -1,4 +1,5 @@
 #[cfg(test)]
+#[allow(clippy::module_inception)]
 mod tests {
     use crate::config::{Config, SecurityConfig};
     use crate::security::SecurityHandler;

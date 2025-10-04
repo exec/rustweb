@@ -1,6 +1,5 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use rustweb::config::Config;
-use std::sync::Arc;
 
 fn bench_config_creation(c: &mut Criterion) {
     c.bench_function("config_creation", |b| {
@@ -17,7 +16,7 @@ fn bench_config_validation(c: &mut Criterion) {
     c.bench_function("config_validation", |b| {
         b.iter(|| {
             let result = config.validate();
-            black_box(result);
+            let _ = black_box(result);
         })
     });
 }
@@ -60,7 +59,7 @@ fn bench_config_with_virtual_hosts(c: &mut Criterion) {
     c.bench_function("config_with_100_virtual_hosts", |b| {
         b.iter(|| {
             let result = config.validate();
-            black_box(result);
+            let _ = black_box(result);
         })
     });
 }
