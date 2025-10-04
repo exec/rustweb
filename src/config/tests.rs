@@ -53,17 +53,14 @@ mod tests {
     #[test]
     fn test_listen_addresses_parsing() {
         let mut config = Config::default();
-        config.server.listen = vec![
-            "127.0.0.1:8080".to_string(),
-            "0.0.0.0:8443".to_string(),
-        ];
+        config.server.listen = vec!["127.0.0.1:8080".to_string(), "0.0.0.0:8443".to_string()];
 
         let addresses = config.listen_addresses().unwrap();
         assert_eq!(addresses.len(), 2);
-        
+
         let expected_addr1: SocketAddr = "127.0.0.1:8080".parse().unwrap();
         let expected_addr2: SocketAddr = "0.0.0.0:8443".parse().unwrap();
-        
+
         assert_eq!(addresses[0], expected_addr1);
         assert_eq!(addresses[1], expected_addr2);
     }
@@ -91,7 +88,7 @@ mod tests {
             LoadBalancingMethod::IpHash,
             LoadBalancingMethod::Random,
         ];
-        
+
         // This is mainly to ensure they can be constructed and used
         for method in methods {
             let upstream = UpstreamConfig {
@@ -146,7 +143,7 @@ mod tests {
         assert!(vhost.locations.is_empty());
     }
 
-    #[test] 
+    #[test]
     fn test_health_check_config() {
         let health_check = HealthCheckConfig {
             path: "/health".to_string(),
@@ -164,25 +161,31 @@ mod tests {
     #[test]
     fn test_compression_config_defaults() {
         let compression = CompressionConfig::default();
-        
+
         assert!(compression.enable_gzip);
         assert!(compression.enable_brotli);
         assert!(!compression.enable_zstd);
         assert_eq!(compression.compression_level, 6);
         assert_eq!(compression.min_compress_size, 1024);
-        assert!(compression.compress_types.contains(&"text/html".to_string()));
-        assert!(compression.compress_types.contains(&"application/json".to_string()));
+        assert!(compression
+            .compress_types
+            .contains(&"text/html".to_string()));
+        assert!(compression
+            .compress_types
+            .contains(&"application/json".to_string()));
     }
 
     #[test]
     fn test_security_config_defaults() {
         let security = SecurityConfig::default();
-        
+
         assert!(security.enable_rate_limiting);
         assert_eq!(security.rate_limit_requests_per_second, 100);
         assert_eq!(security.rate_limit_burst, 200);
         assert!(security.security_headers.contains_key("X-Frame-Options"));
-        assert!(security.security_headers.contains_key("Strict-Transport-Security"));
+        assert!(security
+            .security_headers
+            .contains_key("Strict-Transport-Security"));
         assert!(security.allowed_methods.contains(&"GET".to_string()));
         assert!(security.allowed_methods.contains(&"POST".to_string()));
     }

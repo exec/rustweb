@@ -37,10 +37,7 @@ pub struct LogEntry {
 impl AccessLogger {
     pub fn new(log_path: Option<&str>, format: AccessLogFormat) -> Result<Self> {
         let file = if let Some(path) = log_path {
-            let file = OpenOptions::new()
-                .create(true)
-                .append(true)
-                .open(path)?;
+            let file = OpenOptions::new().create(true).append(true).open(path)?;
             Some(Arc::new(Mutex::new(file)))
         } else {
             None
@@ -51,7 +48,7 @@ impl AccessLogger {
 
     pub async fn log(&self, entry: LogEntry) {
         let log_line = self.format_entry(&entry);
-        
+
         if let Some(ref file) = self.file {
             let mut file_guard = file.lock().await;
             if let Err(e) = writeln!(file_guard, "{}", log_line) {
@@ -68,20 +65,19 @@ impl AccessLogger {
 
     fn format_entry(&self, entry: &LogEntry) -> String {
         match self.format {
-            AccessLogFormat::Json => {
-                json!({
-                    "timestamp": entry.timestamp.to_rfc3339(),
-                    "request_id": entry.request_id.to_string(),
-                    "remote_addr": entry.remote_addr,
-                    "method": entry.method,
-                    "uri": entry.uri,
-                    "status": entry.status,
-                    "response_size": entry.response_size,
-                    "duration_ms": entry.duration_ms,
-                    "user_agent": entry.user_agent,
-                    "referer": entry.referer
-                }).to_string()
-            }
+            AccessLogFormat::Json => json!({
+                "timestamp": entry.timestamp.to_rfc3339(),
+                "request_id": entry.request_id.to_string(),
+                "remote_addr": entry.remote_addr,
+                "method": entry.method,
+                "uri": entry.uri,
+                "status": entry.status,
+                "response_size": entry.response_size,
+                "duration_ms": entry.duration_ms,
+                "user_agent": entry.user_agent,
+                "referer": entry.referer
+            })
+            .to_string(),
             AccessLogFormat::CommonLog => {
                 format!(
                     "{} - - [{}] \"{} {} HTTP/1.1\" {} {}",
@@ -138,7 +134,7 @@ impl LogRotator {
         for i in (1..self.max_files).rev() {
             let old_path = format!("{}.{}", self.base_path, i);
             let new_path = format!("{}.{}", self.base_path, i + 1);
-            
+
             if Path::new(&old_path).exists() {
                 tokio::fs::rename(&old_path, &new_path).await?;
             }

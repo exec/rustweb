@@ -1,18 +1,18 @@
 use crate::config::Config;
-use crate::server::request_handler::RequestHandler;
-use crate::server::tls::TlsManager;
 use crate::server::http2::Http2Handler;
 use crate::server::http3::Http3Server;
+use crate::server::request_handler::RequestHandler;
+use crate::server::tls::TlsManager;
 use anyhow::{Context, Result};
+use futures::future::join_all;
 use hyper::server::conn::http1;
 use hyper_util::rt::TokioIo;
+use signal_hook::consts::{SIGINT, SIGQUIT, SIGTERM};
+use signal_hook_tokio::Signals;
 use std::sync::Arc;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::signal;
 use tracing::{error, info, warn};
-use futures::future::join_all;
-use signal_hook::consts::{SIGTERM, SIGINT, SIGQUIT};
-use signal_hook_tokio::Signals;
 
 pub struct HttpServer {
     config: Arc<Config>,
@@ -23,12 +23,14 @@ pub struct HttpServer {
 impl HttpServer {
     pub fn new(config: Arc<Config>) -> Result<Self> {
         let handler = Arc::new(RequestHandler::new(config.clone())?);
-        
+
         // Initialize TLS for any virtual host that has SSL config
-        let ssl_config = config.virtual_hosts.values()
+        let ssl_config = config
+            .virtual_hosts
+            .values()
             .find_map(|vhost| vhost.ssl.as_ref());
         let tls_manager = TlsManager::new(ssl_config)?;
-        
+
         Ok(Self {
             config,
             handler,
@@ -38,7 +40,7 @@ impl HttpServer {
 
     pub async fn run(self) -> Result<()> {
         let addresses = self.config.listen_addresses()?;
-        
+
         if addresses.is_empty() {
             return Err(anyhow::anyhow!("No listen addresses configured"));
         }
@@ -52,7 +54,7 @@ impl HttpServer {
                 self.handler.clone(),
                 Arc::new(self.tls_manager.clone()),
             );
-            
+
             if let Err(e) = http3_server.start().await {
                 error!("Failed to start HTTP/3 server: {}", e);
             }
@@ -60,7 +62,8 @@ impl HttpServer {
 
         let mut listeners = Vec::new();
         for addr in &addresses {
-            let listener = TcpListener::bind(*addr).await
+            let listener = TcpListener::bind(*addr)
+                .await
                 .with_context(|| format!("Failed to bind to {}", addr))?;
             info!("Listening on {}", addr);
             listeners.push(listener);
@@ -71,7 +74,7 @@ impl HttpServer {
             let config = self.config.clone();
             let tls_manager = self.tls_manager.clone();
             let addr = addresses[i];
-            
+
             tokio::spawn(async move {
                 // Determine if this should be an HTTPS listener
                 let is_https = addr.port() == 8443 || addr.port() == 443;
@@ -117,7 +120,10 @@ impl HttpServer {
             let tls_manager = tls_manager.clone();
 
             tokio::spawn(async move {
-                if let Err(e) = Self::handle_connection(stream, addr, handler, config, tls_manager, is_https).await {
+                if let Err(e) =
+                    Self::handle_connection(stream, addr, handler, config, tls_manager, is_https)
+                        .await
+                {
                     error!("Connection error from {}: {}", addr, e);
                 }
             });
@@ -133,17 +139,19 @@ impl HttpServer {
         is_https: bool,
     ) -> Result<()> {
         stream.set_nodelay(config.server.tcp_nodelay)?;
-        
+
         if is_https {
             // Handle HTTPS connection with HTTP/2 support
             if let Some(acceptor) = tls_manager.get_acceptor() {
-                let tls_stream = acceptor.accept(stream).await
+                let tls_stream = acceptor
+                    .accept(stream)
+                    .await
                     .map_err(|e| anyhow::anyhow!("TLS handshake failed: {}", e))?;
-                
+
                 // Check ALPN negotiation to determine protocol
                 let (_, session) = tls_stream.get_ref();
                 let alpn_protocol = session.alpn_protocol();
-                
+
                 match alpn_protocol {
                     Some(b"h2") => {
                         // Use HTTP/2
@@ -158,9 +166,7 @@ impl HttpServer {
                         let service = hyper::service::service_fn(move |req| {
                             let handler = handler.clone();
                             let addr = addr;
-                            async move {
-                                handler.handle_request(req, addr).await
-                            }
+                            async move { handler.handle_request(req, addr).await }
                         });
 
                         http1::Builder::new()
@@ -170,12 +176,17 @@ impl HttpServer {
                             .map_err(|e| anyhow::anyhow!("HTTPS connection error: {}", e))?;
                     }
                     Some(protocol) => {
-                        warn!("Unsupported ALPN protocol: {:?}", std::str::from_utf8(protocol));
+                        warn!(
+                            "Unsupported ALPN protocol: {:?}",
+                            std::str::from_utf8(protocol)
+                        );
                         return Err(anyhow::anyhow!("Unsupported ALPN protocol"));
                     }
                 }
             } else {
-                return Err(anyhow::anyhow!("HTTPS requested but no TLS acceptor configured"));
+                return Err(anyhow::anyhow!(
+                    "HTTPS requested but no TLS acceptor configured"
+                ));
             }
         } else {
             // Handle HTTP connection
@@ -183,9 +194,7 @@ impl HttpServer {
             let service = hyper::service::service_fn(move |req| {
                 let handler = handler.clone();
                 let addr = addr;
-                async move {
-                    handler.handle_request(req, addr).await
-                }
+                async move { handler.handle_request(req, addr).await }
             });
 
             http1::Builder::new()
@@ -215,10 +224,12 @@ impl HttpServer {
                 }
             }
         }
-        
+
         #[cfg(not(unix))]
         {
-            tokio::signal::ctrl_c().await.expect("Failed to listen for ctrl-c");
+            tokio::signal::ctrl_c()
+                .await
+                .expect("Failed to listen for ctrl-c");
             info!("Received Ctrl-C, initiating graceful shutdown");
         }
     }

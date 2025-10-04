@@ -27,8 +27,9 @@ impl CompressionHandler {
             .get("accept-encoding")
             .and_then(|h| h.to_str().ok())
             .unwrap_or("");
-        
-        self.compress_response_with_encoding(response, accept_encoding).await
+
+        self.compress_response_with_encoding(response, accept_encoding)
+            .await
     }
 
     pub async fn compress_response_with_encoding(
@@ -47,7 +48,7 @@ impl CompressionHandler {
         }
 
         let body_bytes = response.body().clone().collect().await?.to_bytes();
-        
+
         if body_bytes.len() < self.config.compression.min_compress_size {
             return Ok(response);
         }
@@ -56,9 +57,13 @@ impl CompressionHandler {
             if let Ok(compressed) = self.compress_brotli(&body_bytes) {
                 let (parts, _) = response.into_parts();
                 let mut response = Response::from_parts(parts, Full::new(compressed));
-                response.headers_mut().insert("content-encoding", "br".parse().unwrap());
+                response
+                    .headers_mut()
+                    .insert("content-encoding", "br".parse().unwrap());
                 if let Some(exact_size) = response.body().size_hint().exact() {
-                    response.headers_mut().insert("content-length", exact_size.to_string().parse().unwrap());
+                    response
+                        .headers_mut()
+                        .insert("content-length", exact_size.to_string().parse().unwrap());
                 }
                 return Ok(response);
             }
@@ -69,8 +74,13 @@ impl CompressionHandler {
                 let compressed_len = compressed.len();
                 let (parts, _) = response.into_parts();
                 let mut response = Response::from_parts(parts, Full::new(compressed));
-                response.headers_mut().insert("content-encoding", "gzip".parse().unwrap());
-                response.headers_mut().insert("content-length", compressed_len.to_string().parse().unwrap());
+                response
+                    .headers_mut()
+                    .insert("content-encoding", "gzip".parse().unwrap());
+                response.headers_mut().insert(
+                    "content-length",
+                    compressed_len.to_string().parse().unwrap(),
+                );
                 return Ok(response);
             }
         }
@@ -80,8 +90,13 @@ impl CompressionHandler {
                 let compressed_len = compressed.len();
                 let (parts, _) = response.into_parts();
                 let mut response = Response::from_parts(parts, Full::new(compressed));
-                response.headers_mut().insert("content-encoding", "zstd".parse().unwrap());
-                response.headers_mut().insert("content-length", compressed_len.to_string().parse().unwrap());
+                response
+                    .headers_mut()
+                    .insert("content-encoding", "zstd".parse().unwrap());
+                response.headers_mut().insert(
+                    "content-length",
+                    compressed_len.to_string().parse().unwrap(),
+                );
                 return Ok(response);
             }
         }
@@ -90,11 +105,16 @@ impl CompressionHandler {
     }
 
     fn should_compress(&self, content_type: &str, response: &Response<Full<Bytes>>) -> bool {
-        if response.status().is_redirection() || response.status().is_client_error() || response.status().is_server_error() {
+        if response.status().is_redirection()
+            || response.status().is_client_error()
+            || response.status().is_server_error()
+        {
             return false;
         }
 
-        self.config.compression.compress_types
+        self.config
+            .compression
+            .compress_types
             .iter()
             .any(|ct| content_type.starts_with(ct))
     }
@@ -115,7 +135,7 @@ impl CompressionHandler {
             &mut compressed,
             4096, // buffer size
             self.config.compression.compression_level,
-            22,   // window size
+            22, // window size
         );
         writer.write_all(data)?;
         writer.flush()?;
@@ -124,7 +144,8 @@ impl CompressionHandler {
     }
 
     fn compress_zstd(&self, data: &[u8]) -> Result<Bytes> {
-        let compressed = zstd::bulk::compress(data, self.config.compression.compression_level as i32)?;
+        let compressed =
+            zstd::bulk::compress(data, self.config.compression.compression_level as i32)?;
         Ok(Bytes::from(compressed))
     }
 }

@@ -3,14 +3,14 @@ use clap::Parser;
 use std::sync::Arc;
 use tracing::{error, info};
 
+mod compression;
 mod config;
-mod server;
+mod config_reload;
+mod logging;
+mod metrics;
 mod proxy;
 mod security;
-mod compression;
-mod metrics;
-mod logging;
-mod config_reload;
+mod server;
 mod ssl_cert_gen;
 
 use config::Config;
@@ -98,21 +98,23 @@ fn daemonize() -> Result<()> {
                 if unsafe { libc::setsid() } == -1 {
                     return Err(anyhow::anyhow!("Failed to create new session"));
                 }
-                
+
                 unsafe {
                     libc::close(0);
-                    libc::close(1); 
+                    libc::close(1);
                     libc::close(2);
                 }
             }
             _ => process::exit(0),
         }
     }
-    
+
     #[cfg(not(unix))]
     {
-        return Err(anyhow::anyhow!("Daemon mode not supported on this platform"));
+        return Err(anyhow::anyhow!(
+            "Daemon mode not supported on this platform"
+        ));
     }
-    
+
     Ok(())
 }

@@ -1,4 +1,4 @@
-use crate::server::response::{ResponseBuilder, ErrorResponse};
+use crate::server::response::{ErrorResponse, ResponseBuilder};
 use anyhow::Result;
 use bytes::Bytes;
 use http_body_util::Full;
@@ -27,9 +27,9 @@ impl StaticFileHandler {
 
         let request_path = req.uri().path();
         let sanitized_path = self.sanitize_path(request_path)?;
-        
+
         let full_path = Path::new(document_root).join(&sanitized_path);
-        
+
         debug!("Serving static file: {}", full_path.display());
 
         if !self.is_safe_path(&full_path, document_root)? {
@@ -80,7 +80,9 @@ impl StaticFileHandler {
         }
 
         if let Some(if_modified_since) = req.headers().get("if-modified-since") {
-            if let Ok(since_time) = httpdate::parse_http_date(if_modified_since.to_str().unwrap_or("")) {
+            if let Ok(since_time) =
+                httpdate::parse_http_date(if_modified_since.to_str().unwrap_or(""))
+            {
                 if let Ok(modified_time) = metadata.modified() {
                     if modified_time <= since_time {
                         return Ok(ResponseBuilder::new(StatusCode::NOT_MODIFIED).build());
@@ -114,23 +116,25 @@ impl StaticFileHandler {
     }
 
     fn sanitize_path(&self, path: &str) -> Result<String> {
-        let decoded = urlencoding::decode(path)
-            .map_err(|_| anyhow::anyhow!("Invalid URL encoding"))?;
-        
+        let decoded =
+            urlencoding::decode(path).map_err(|_| anyhow::anyhow!("Invalid URL encoding"))?;
+
         let path = decoded.trim_start_matches('/');
-        
+
         if path.contains("..") || path.contains('\0') {
             return Err(anyhow::anyhow!("Invalid path"));
         }
-        
+
         Ok(path.to_string())
     }
 
     fn is_safe_path(&self, requested_path: &Path, document_root: &str) -> Result<bool> {
-        let canonical_requested = requested_path.canonicalize()
+        let canonical_requested = requested_path
+            .canonicalize()
             .unwrap_or_else(|_| requested_path.to_path_buf());
-        
-        let canonical_root = Path::new(document_root).canonicalize()
+
+        let canonical_root = Path::new(document_root)
+            .canonicalize()
             .unwrap_or_else(|_| PathBuf::from(document_root));
 
         Ok(canonical_requested.starts_with(canonical_root))
@@ -177,9 +181,12 @@ mod tests {
     #[test]
     fn test_sanitize_path() {
         let handler = StaticFileHandler::new();
-        
+
         assert_eq!(handler.sanitize_path("/index.html").unwrap(), "index.html");
-        assert_eq!(handler.sanitize_path("/css/style.css").unwrap(), "css/style.css");
+        assert_eq!(
+            handler.sanitize_path("/css/style.css").unwrap(),
+            "css/style.css"
+        );
         assert!(handler.sanitize_path("/../etc/passwd").is_err());
         assert!(handler.sanitize_path("/file\0.txt").is_err());
     }

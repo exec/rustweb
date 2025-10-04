@@ -1,11 +1,11 @@
-use crate::config::{Config, VirtualHostConfig};
-use crate::server::static_files::StaticFileHandler;
-use crate::server::response::{ResponseBuilder, ErrorResponse};
-use crate::security::SecurityHandler;
 use crate::compression::CompressionHandler;
+use crate::config::{Config, VirtualHostConfig};
+use crate::logging::{AccessLogFormat, AccessLogger, LogEntry};
 use crate::metrics::MetricsCollector;
 use crate::proxy::ProxyHandler;
-use crate::logging::{AccessLogger, AccessLogFormat, LogEntry};
+use crate::security::SecurityHandler;
+use crate::server::response::{ErrorResponse, ResponseBuilder};
+use crate::server::static_files::StaticFileHandler;
 use anyhow::Result;
 use bytes::Bytes;
 use http_body_util::{BodyExt, Full};
@@ -29,7 +29,7 @@ pub struct RequestHandler {
 impl RequestHandler {
     pub fn new(config: Arc<Config>) -> Result<Self> {
         let metrics = Arc::new(MetricsCollector::new());
-        
+
         // Initialize access logger based on configuration
         let access_logger = if let Some(ref access_log_path) = config.logging.access_log {
             let format = match config.logging.access_log_format.as_str() {
@@ -41,7 +41,7 @@ impl RequestHandler {
         } else {
             None
         };
-        
+
         Ok(Self {
             static_handler: StaticFileHandler::new(),
             security_handler: SecurityHandler::new(config.clone())?,
@@ -60,32 +60,31 @@ impl RequestHandler {
     ) -> Result<Response<Full<Bytes>>, hyper::Error> {
         let request_id = Uuid::new_v4();
         let start_time = std::time::Instant::now();
-        
+
         let method = req.method().clone();
         let uri = req.uri().clone();
-        
+
         // Extract headers for logging before consuming the request
-        let user_agent = req.headers()
+        let user_agent = req
+            .headers()
             .get("user-agent")
             .and_then(|h| h.to_str().ok())
             .map(|s| s.to_string());
-        
-        let referer = req.headers()
+
+        let referer = req
+            .headers()
             .get("referer")
             .and_then(|h| h.to_str().ok())
             .map(|s| s.to_string());
-        
+
         let result = self.process_request(req, client_addr, request_id).await;
-        
+
         let duration = start_time.elapsed();
-        
+
         let response = match result {
             Ok(response) => {
-                self.metrics.record_request(
-                    response.status(),
-                    &method,
-                    duration,
-                );
+                self.metrics
+                    .record_request(response.status(), &method, duration);
                 response
             }
             Err(e) => {
@@ -108,7 +107,8 @@ impl RequestHandler {
 
         // Log access entry
         if let Some(ref access_logger) = self.access_logger {
-            let content_length = response.headers()
+            let content_length = response
+                .headers()
                 .get("content-length")
                 .and_then(|h| h.to_str().ok())
                 .and_then(|s| s.parse().ok())
@@ -154,7 +154,8 @@ impl RequestHandler {
         let location_config = self.find_location_config(vhost_config, path);
 
         // Save headers for compression before potentially moving req
-        let accept_encoding = req.headers()
+        let accept_encoding = req
+            .headers()
             .get("accept-encoding")
             .and_then(|h| h.to_str().ok())
             .unwrap_or("")
@@ -169,13 +170,17 @@ impl RequestHandler {
             .and_then(|l| l.document_root.as_ref())
             .or_else(|| vhost_config.and_then(|v| v.document_root.as_ref()))
         {
-            self.handle_static_request(&req, document_root, vhost_config).await?
+            self.handle_static_request(&req, document_root, vhost_config)
+                .await?
         } else {
             ErrorResponse::not_found().build()
         };
 
         let response = self.security_handler.add_security_headers(response);
-        let response = self.compression_handler.compress_response_with_encoding(response, &accept_encoding).await?;
+        let response = self
+            .compression_handler
+            .compress_response_with_encoding(response, &accept_encoding)
+            .await?;
 
         Ok(response)
     }
@@ -192,16 +197,14 @@ impl RequestHandler {
     }
 
     fn get_virtual_host_config(&self, host: &str) -> Option<&VirtualHostConfig> {
-        self.config.virtual_hosts.get(host)
-            .or_else(|| {
-                self.config.virtual_hosts
-                    .values()
-                    .find(|vhost| {
-                        vhost.server_name.iter().any(|name| {
-                            name == "*" || self.matches_wildcard(name, host)
-                        })
-                    })
+        self.config.virtual_hosts.get(host).or_else(|| {
+            self.config.virtual_hosts.values().find(|vhost| {
+                vhost
+                    .server_name
+                    .iter()
+                    .any(|name| name == "*" || self.matches_wildcard(name, host))
             })
+        })
     }
 
     fn find_location_config<'a>(
@@ -209,7 +212,8 @@ impl RequestHandler {
         vhost_config: Option<&'a VirtualHostConfig>,
         path: &str,
     ) -> Option<&'a crate::config::LocationConfig> {
-        vhost_config?.locations
+        vhost_config?
+            .locations
             .iter()
             .filter(|(pattern, _)| path.starts_with(pattern.as_str()))
             .max_by_key(|(pattern, _)| pattern.len())
@@ -236,7 +240,9 @@ impl RequestHandler {
             .map(|v| v.index_files.as_slice())
             .unwrap_or(&default_index);
 
-        self.static_handler.serve_file(req, document_root, index_files).await
+        self.static_handler
+            .serve_file(req, document_root, index_files)
+            .await
     }
 
     async fn handle_proxy_request(

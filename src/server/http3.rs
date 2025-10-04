@@ -34,7 +34,7 @@ impl Http3Server {
         // TODO: HTTP/3 implementation temporarily disabled due to complex quinn/h3 integration
         info!("HTTP/3 support is planned but not yet implemented in this version");
         info!("The server supports HTTP/1.1 and HTTP/2 with full feature parity");
-        
+
         Ok(())
     }
 

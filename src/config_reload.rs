@@ -1,12 +1,12 @@
 use crate::config::Config;
 use anyhow::Result;
+use futures::stream::StreamExt;
+use signal_hook::consts::SIGHUP;
+use signal_hook_tokio::Signals;
 use std::path::Path;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use tracing::{info, warn, error};
-use signal_hook::consts::SIGHUP;
-use signal_hook_tokio::Signals;
-use futures::stream::StreamExt;
+use tracing::{error, info, warn};
 
 pub struct ConfigManager {
     config: Arc<RwLock<Config>>,
@@ -32,8 +32,8 @@ impl ConfigManager {
         // Start signal handler for SIGHUP (reload config)
         #[cfg(unix)]
         {
-            let mut signals = Signals::new(&[SIGHUP])
-                .expect("Failed to register SIGHUP signal handler");
+            let mut signals =
+                Signals::new(&[SIGHUP]).expect("Failed to register SIGHUP signal handler");
 
             tokio::spawn(async move {
                 while let Some(signal) = signals.next().await {
@@ -53,22 +53,19 @@ impl ConfigManager {
         Ok(())
     }
 
-    async fn reload_config(
-        config: &Arc<RwLock<Config>>, 
-        config_path: &str
-    ) -> Result<()> {
+    async fn reload_config(config: &Arc<RwLock<Config>>, config_path: &str) -> Result<()> {
         // Load new config
         let new_config = Config::load(config_path)?;
-        
+
         // Validate new config
         new_config.validate()?;
-        
+
         // Hot-swap the configuration
         {
             let mut config_guard = config.write().await;
             *config_guard = new_config;
         }
-        
+
         info!("Configuration reloaded successfully from {}", config_path);
         Ok(())
     }
@@ -76,16 +73,16 @@ impl ConfigManager {
     pub async fn watch_file_changes(&self) -> Result<()> {
         let config = self.config.clone();
         let config_path = self.config_path.clone();
-        
+
         // Simple file modification time watching
         let mut last_modified = std::fs::metadata(&config_path)?.modified()?;
-        
+
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(std::time::Duration::from_secs(5));
-            
+
             loop {
                 interval.tick().await;
-                
+
                 if let Ok(metadata) = std::fs::metadata(&config_path) {
                     if let Ok(modified) = metadata.modified() {
                         if modified > last_modified {
@@ -100,7 +97,7 @@ impl ConfigManager {
                 }
             }
         });
-        
+
         Ok(())
     }
 }
@@ -109,12 +106,14 @@ impl ConfigManager {
 impl Config {
     pub fn can_hot_reload(&self, new_config: &Config) -> Result<Vec<String>> {
         let mut warnings = Vec::new();
-        
+
         // Check if listen addresses changed (requires restart)
         if self.server.listen != new_config.server.listen {
-            return Err(anyhow::anyhow!("Listen addresses cannot be changed during hot reload. Restart required."));
+            return Err(anyhow::anyhow!(
+                "Listen addresses cannot be changed during hot reload. Restart required."
+            ));
         }
-        
+
         // Check if SSL certificates changed
         for (name, old_vhost) in &self.virtual_hosts {
             if let Some(new_vhost) = new_config.virtual_hosts.get(name) {
@@ -123,12 +122,14 @@ impl Config {
                 }
             }
         }
-        
+
         // Check if worker thread count changed
         if self.server.worker_threads != new_config.server.worker_threads {
-            warnings.push("Worker thread count changed. This will only affect new connections.".to_string());
+            warnings.push(
+                "Worker thread count changed. This will only affect new connections.".to_string(),
+            );
         }
-        
+
         Ok(warnings)
     }
 }

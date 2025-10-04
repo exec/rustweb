@@ -1,8 +1,8 @@
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::path::Path;
 use std::net::SocketAddr;
+use std::path::Path;
 
 #[cfg(test)]
 mod tests;
@@ -148,7 +148,7 @@ impl Default for ServerConfig {
             send_timeout: 60,
             client_body_timeout: 60,
             client_header_timeout: 60,
-            client_max_body_size: 1024 * 1024,  // 1MB
+            client_max_body_size: 1024 * 1024, // 1MB
             tcp_nodelay: true,
             tcp_fastopen: false,
             enable_http3: true,
@@ -176,15 +176,24 @@ impl Default for SecurityConfig {
         headers.insert("X-Frame-Options".to_string(), "DENY".to_string());
         headers.insert("X-Content-Type-Options".to_string(), "nosniff".to_string());
         headers.insert("X-XSS-Protection".to_string(), "1; mode=block".to_string());
-        headers.insert("Strict-Transport-Security".to_string(), "max-age=31536000; includeSubDomains".to_string());
-        
+        headers.insert(
+            "Strict-Transport-Security".to_string(),
+            "max-age=31536000; includeSubDomains".to_string(),
+        );
+
         Self {
             enable_rate_limiting: true,
             rate_limit_requests_per_second: 100,
             rate_limit_burst: 200,
             security_headers: headers,
-            allowed_methods: vec!["GET".to_string(), "POST".to_string(), "HEAD".to_string(), "PUT".to_string(), "DELETE".to_string()],
-            max_request_size: 10 * 1024 * 1024,  // 10MB
+            allowed_methods: vec![
+                "GET".to_string(),
+                "POST".to_string(),
+                "HEAD".to_string(),
+                "PUT".to_string(),
+                "DELETE".to_string(),
+            ],
+            max_request_size: 10 * 1024 * 1024, // 10MB
         }
     }
 }
@@ -215,10 +224,10 @@ impl Config {
     pub fn load<P: AsRef<Path>>(path: P) -> Result<Self> {
         let content = std::fs::read_to_string(path.as_ref())
             .with_context(|| format!("Failed to read config file: {}", path.as_ref().display()))?;
-        
+
         let config: Config = toml::from_str(&content)
             .with_context(|| format!("Failed to parse config file: {}", path.as_ref().display()))?;
-        
+
         config.validate()?;
         Ok(config)
     }
@@ -231,7 +240,8 @@ impl Config {
 
     pub fn validate(&self) -> Result<()> {
         for listen_addr in &self.server.listen {
-            listen_addr.parse::<SocketAddr>()
+            listen_addr
+                .parse::<SocketAddr>()
                 .with_context(|| format!("Invalid listen address: {}", listen_addr))?;
         }
 
@@ -245,7 +255,10 @@ impl Config {
 
         for (name, upstream) in &self.upstream {
             if upstream.servers.is_empty() {
-                return Err(anyhow::anyhow!("Upstream '{}' has no servers configured", name));
+                return Err(anyhow::anyhow!(
+                    "Upstream '{}' has no servers configured",
+                    name
+                ));
             }
         }
 
@@ -253,9 +266,13 @@ impl Config {
     }
 
     pub fn listen_addresses(&self) -> Result<Vec<SocketAddr>> {
-        self.server.listen
+        self.server
+            .listen
             .iter()
-            .map(|addr| addr.parse().with_context(|| format!("Invalid listen address: {}", addr)))
+            .map(|addr| {
+                addr.parse()
+                    .with_context(|| format!("Invalid listen address: {}", addr))
+            })
             .collect()
     }
 
@@ -263,7 +280,10 @@ impl Config {
         if let Some(ref quic_addresses) = self.server.listen_quic {
             quic_addresses
                 .iter()
-                .map(|addr| addr.parse().with_context(|| format!("Invalid QUIC listen address: {}", addr)))
+                .map(|addr| {
+                    addr.parse()
+                        .with_context(|| format!("Invalid QUIC listen address: {}", addr))
+                })
                 .collect()
         } else {
             Ok(vec![])

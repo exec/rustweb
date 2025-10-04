@@ -1,7 +1,7 @@
 use crate::config::SslConfig;
 use crate::ssl_cert_gen::CertificateGenerator;
 use anyhow::{Context, Result};
-use rustls::{ServerConfig};
+use rustls::ServerConfig;
 use rustls_pemfile::{certs, pkcs8_private_keys};
 use std::fs::File;
 use std::io::BufReader;
@@ -33,7 +33,7 @@ impl TlsManager {
         use std::path::Path;
         let cert_exists = Path::new(&ssl_config.certificate).exists();
         let key_exists = Path::new(&ssl_config.private_key).exists();
-        
+
         if !cert_exists || !key_exists {
             if ssl_config.auto_generate_self_signed {
                 // Use blocking certificate generation
@@ -41,21 +41,30 @@ impl TlsManager {
             } else {
                 return Err(anyhow::anyhow!(
                     "SSL certificates not found at {} and {}, and auto-generation is disabled",
-                    ssl_config.certificate, ssl_config.private_key
+                    ssl_config.certificate,
+                    ssl_config.private_key
                 ));
             }
         }
         // Load certificates
-        let cert_file = File::open(&ssl_config.certificate)
-            .with_context(|| format!("Failed to open certificate file: {}", ssl_config.certificate))?;
+        let cert_file = File::open(&ssl_config.certificate).with_context(|| {
+            format!(
+                "Failed to open certificate file: {}",
+                ssl_config.certificate
+            )
+        })?;
         let mut cert_reader = BufReader::new(cert_file);
         let cert_chain: Vec<_> = certs(&mut cert_reader)
             .collect::<Result<Vec<_>, _>>()
             .context("Failed to parse certificate file")?;
 
         // Load private key
-        let key_file = File::open(&ssl_config.private_key)
-            .with_context(|| format!("Failed to open private key file: {}", ssl_config.private_key))?;
+        let key_file = File::open(&ssl_config.private_key).with_context(|| {
+            format!(
+                "Failed to open private key file: {}",
+                ssl_config.private_key
+            )
+        })?;
         let mut key_reader = BufReader::new(key_file);
         let keys: Vec<_> = pkcs8_private_keys(&mut key_reader)
             .collect::<Result<Vec<_>, _>>()
@@ -82,38 +91,52 @@ impl TlsManager {
     pub fn supports_http2(&self) -> bool {
         self.acceptor.is_some()
     }
-    
+
     fn generate_cert_blocking(cert_path: &str, key_path: &str) -> Result<()> {
-        use std::process::Command;
         use std::fs;
         use std::path::Path;
+        use std::process::Command;
         use tracing::{info, warn};
-        
+
         // Create directory if it doesn't exist
         if let Some(cert_dir) = Path::new(cert_path).parent() {
-            fs::create_dir_all(cert_dir)
-                .with_context(|| format!("Failed to create certificate directory: {}", cert_dir.display()))?;
+            fs::create_dir_all(cert_dir).with_context(|| {
+                format!(
+                    "Failed to create certificate directory: {}",
+                    cert_dir.display()
+                )
+            })?;
         }
 
         info!("Generating self-signed SSL certificate");
         warn!("SSL certificates not found, generating self-signed certificates");
-        
+
         // Use openssl command to generate certificate
         let output = Command::new("openssl")
             .args([
-                "req", "-x509", "-newkey", "rsa:2048",
-                "-keyout", key_path,
-                "-out", cert_path,
-                "-days", "365",
+                "req",
+                "-x509",
+                "-newkey",
+                "rsa:2048",
+                "-keyout",
+                key_path,
+                "-out",
+                cert_path,
+                "-days",
+                "365",
                 "-nodes",
-                "-subj", "/C=US/ST=Auto/L=Auto/O=RustWeb/OU=Auto/CN=localhost"
+                "-subj",
+                "/C=US/ST=Auto/L=Auto/O=RustWeb/OU=Auto/CN=localhost",
             ])
             .output()
             .context("Failed to execute openssl command. Please ensure openssl is installed.")?;
 
         if !output.status.success() {
             let error_msg = String::from_utf8_lossy(&output.stderr);
-            return Err(anyhow::anyhow!("Failed to generate SSL certificate: {}", error_msg));
+            return Err(anyhow::anyhow!(
+                "Failed to generate SSL certificate: {}",
+                error_msg
+            ));
         }
 
         // Set appropriate permissions on the private key (600)
@@ -127,7 +150,7 @@ impl TlsManager {
 
         info!("Successfully generated self-signed SSL certificate");
         warn!("⚠️  Using self-signed certificate. For production, replace with a proper certificate from a CA.");
-        
+
         Ok(())
     }
 }

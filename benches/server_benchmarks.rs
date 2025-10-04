@@ -13,7 +13,7 @@ fn bench_config_creation(c: &mut Criterion) {
 
 fn bench_config_validation(c: &mut Criterion) {
     let config = Config::default();
-    
+
     c.bench_function("config_validation", |b| {
         b.iter(|| {
             let result = config.validate();
@@ -29,7 +29,7 @@ fn bench_listen_addresses_parsing(c: &mut Criterion) {
         "0.0.0.0:8443".to_string(),
         "192.168.1.1:9090".to_string(),
     ];
-    
+
     c.bench_function("listen_addresses_parsing", |b| {
         b.iter(|| {
             let addresses = config.listen_addresses().unwrap();
@@ -40,7 +40,7 @@ fn bench_listen_addresses_parsing(c: &mut Criterion) {
 
 fn bench_config_with_virtual_hosts(c: &mut Criterion) {
     let mut config = Config::default();
-    
+
     // Add multiple virtual hosts to test scalability
     for i in 0..100 {
         let host_name = format!("example{}.com", i);
@@ -56,7 +56,7 @@ fn bench_config_with_virtual_hosts(c: &mut Criterion) {
             },
         );
     }
-    
+
     c.bench_function("config_with_100_virtual_hosts", |b| {
         b.iter(|| {
             let result = config.validate();

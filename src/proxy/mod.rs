@@ -2,6 +2,7 @@ use crate::config::{Config, LoadBalancingMethod, UpstreamConfig};
 use crate::server::response::ErrorResponse;
 use anyhow::{Context, Result};
 use bytes::Bytes;
+use dashmap::DashMap;
 use http_body_util::{BodyExt, Full};
 use hyper::body::Incoming;
 use hyper::{Request, Response, Uri};
@@ -10,7 +11,6 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::time::timeout;
-use dashmap::DashMap;
 
 pub struct ProxyHandler {
     config: Arc<Config>,
@@ -38,9 +38,10 @@ pub struct LoadBalancer {
 impl ProxyHandler {
     pub fn new(config: Arc<Config>) -> Result<Self> {
         let mut upstreams = HashMap::new();
-        
+
         for (name, upstream_config) in &config.upstream {
-            let servers = upstream_config.servers
+            let servers = upstream_config
+                .servers
                 .iter()
                 .map(|url| UpstreamServer {
                     url: url.clone(),
@@ -62,10 +63,7 @@ impl ProxyHandler {
             upstreams.insert(name.clone(), Arc::new(pool));
         }
 
-        Ok(Self {
-            config,
-            upstreams,
-        })
+        Ok(Self { config, upstreams })
     }
 
     pub async fn proxy_request(
@@ -73,16 +71,20 @@ impl ProxyHandler {
         mut req: Request<Incoming>,
         proxy_pass: &str,
     ) -> Result<Response<Full<Bytes>>> {
-        let upstream_pool = self.upstreams
+        let upstream_pool = self
+            .upstreams
             .get(proxy_pass)
             .ok_or_else(|| anyhow::anyhow!("Unknown upstream: {}", proxy_pass))?;
 
-        let upstream_server = upstream_pool.select_server()
+        let upstream_server = upstream_pool
+            .select_server()
             .ok_or_else(|| anyhow::anyhow!("No healthy upstream servers available"))?;
 
         upstream_server.connections.fetch_add(1, Ordering::Relaxed);
 
-        let result = self.forward_request(req, upstream_server, &upstream_pool.config).await;
+        let result = self
+            .forward_request(req, upstream_server, &upstream_pool.config)
+            .await;
 
         upstream_server.connections.fetch_sub(1, Ordering::Relaxed);
 
@@ -103,20 +105,25 @@ impl ProxyHandler {
         upstream_server: &UpstreamServer,
         upstream_config: &UpstreamConfig,
     ) -> Result<Response<Full<Bytes>>> {
-        let upstream_uri: Uri = upstream_server.url.parse()
+        let upstream_uri: Uri = upstream_server
+            .url
+            .parse()
             .context("Invalid upstream URL")?;
 
         let original_uri = req.uri().clone();
-        let path_and_query = original_uri.path_and_query()
+        let path_and_query = original_uri
+            .path_and_query()
             .map(|pq| pq.as_str())
             .unwrap_or("/");
 
-        let new_uri = format!("{}://{}{}", 
+        let new_uri = format!(
+            "{}://{}{}",
             upstream_uri.scheme_str().unwrap_or("http"),
             upstream_uri.authority().unwrap(),
             path_and_query
-        ).parse::<Uri>()
-            .context("Failed to construct upstream URI")?;
+        )
+        .parse::<Uri>()
+        .context("Failed to construct upstream URI")?;
 
         *req.uri_mut() = new_uri;
 
@@ -129,22 +136,30 @@ impl ProxyHandler {
         if let Some(addr) = req.headers().get("x-forwarded-for").cloned() {
             req.headers_mut().insert("x-forwarded-for", addr);
         } else if let Some(remote_addr) = req.extensions().get::<std::net::SocketAddr>().copied() {
-            req.headers_mut().insert("x-forwarded-for", remote_addr.ip().to_string().parse().unwrap());
+            req.headers_mut().insert(
+                "x-forwarded-for",
+                remote_addr.ip().to_string().parse().unwrap(),
+            );
         }
 
-        let client = hyper_util::client::legacy::Client::builder(hyper_util::rt::TokioExecutor::new()).build_http();
+        let client =
+            hyper_util::client::legacy::Client::builder(hyper_util::rt::TokioExecutor::new())
+                .build_http();
 
         let response_future = client.request(req);
         let response = timeout(
             Duration::from_millis(upstream_config.read_timeout),
-            response_future
-        ).await
-            .context("Upstream request timeout")?
-            .context("Upstream request failed")?;
+            response_future,
+        )
+        .await
+        .context("Upstream request timeout")?
+        .context("Upstream request failed")?;
 
         // Collect the response body
         let (parts, body) = response.into_parts();
-        let body_bytes = body.collect().await
+        let body_bytes = body
+            .collect()
+            .await
             .context("Failed to read response body")?
             .to_bytes();
 
@@ -170,8 +185,10 @@ impl ProxyHandler {
 
                     if should_check {
                         let is_healthy = self.check_server_health(server, health_config).await;
-                        server.healthy.store(if is_healthy { 1 } else { 0 }, Ordering::Relaxed);
-                        
+                        server
+                            .healthy
+                            .store(if is_healthy { 1 } else { 0 }, Ordering::Relaxed);
+
                         tracing::debug!(
                             "Health check for {}/{}: {}",
                             name,
@@ -190,9 +207,11 @@ impl ProxyHandler {
         health_config: &crate::config::HealthCheckConfig,
     ) -> bool {
         let health_url = format!("{}{}", server.url, health_config.path);
-        
-        let client = hyper_util::client::legacy::Client::builder(hyper_util::rt::TokioExecutor::new()).build_http();
-        
+
+        let client =
+            hyper_util::client::legacy::Client::builder(hyper_util::rt::TokioExecutor::new())
+                .build_http();
+
         let request = Request::builder()
             .uri(health_url)
             .method("GET")
@@ -200,8 +219,13 @@ impl ProxyHandler {
             .unwrap();
 
         let response_future = client.request(request);
-        
-        match timeout(Duration::from_millis(health_config.timeout), response_future).await {
+
+        match timeout(
+            Duration::from_millis(health_config.timeout),
+            response_future,
+        )
+        .await
+        {
             Ok(Ok(response)) => response.status().is_success(),
             _ => false,
         }
@@ -210,7 +234,8 @@ impl ProxyHandler {
 
 impl UpstreamPool {
     fn select_server(&self) -> Option<&UpstreamServer> {
-        let healthy_servers: Vec<_> = self.servers
+        let healthy_servers: Vec<_> = self
+            .servers
             .iter()
             .filter(|s| s.healthy.load(Ordering::Relaxed) == 1)
             .collect();
@@ -224,15 +249,14 @@ impl UpstreamPool {
                 let index = self.load_balancer.counter.fetch_add(1, Ordering::Relaxed);
                 Some(healthy_servers[index % healthy_servers.len()])
             }
-            LoadBalancingMethod::LeastConnections => {
-                healthy_servers.iter()
-                    .min_by_key(|s| s.connections.load(Ordering::Relaxed))
-                    .copied()
-            }
+            LoadBalancingMethod::LeastConnections => healthy_servers
+                .iter()
+                .min_by_key(|s| s.connections.load(Ordering::Relaxed))
+                .copied(),
             LoadBalancingMethod::Random => {
                 use std::collections::hash_map::DefaultHasher;
                 use std::hash::{Hash, Hasher};
-                
+
                 let mut hasher = DefaultHasher::new();
                 std::time::SystemTime::now().hash(&mut hasher);
                 let index = (hasher.finish() as usize) % healthy_servers.len();

@@ -24,15 +24,15 @@ impl Http2Handler {
         client_addr: std::net::SocketAddr,
     ) -> Result<()> {
         let mut connection = server::handshake(stream).await?;
-        
+
         info!("HTTP/2 connection established from {}", client_addr);
 
         while let Some(request) = connection.accept().await {
             let (request, mut respond) = request?;
-            
+
             let handler = self.request_handler.clone();
             let addr = client_addr;
-            
+
             tokio::spawn(async move {
                 match Self::handle_h2_request(handler, request, addr).await {
                     Ok(response) => {
@@ -46,7 +46,7 @@ impl Http2Handler {
                             .status(500)
                             .body(Full::new(Bytes::from("Internal Server Error")))
                             .unwrap();
-                        
+
                         let _ = Self::send_h2_response(&mut respond, error_response).await;
                     }
                 }
@@ -64,7 +64,7 @@ impl Http2Handler {
     ) -> Result<Response<Full<Bytes>>> {
         // Convert H2 request to hyper request
         let (parts, mut body) = request.into_parts();
-        
+
         // Collect the body
         let mut body_bytes = Vec::new();
         while let Some(chunk) = body.data().await {
@@ -86,18 +86,18 @@ impl Http2Handler {
     ) -> Result<Response<Full<Bytes>>> {
         let path = parts.uri.path();
         let method = &parts.method;
-        
+
         // Basic HTTP/2 request handling - serve static files for GET requests
         if method == hyper::Method::GET {
             // For simplicity, we'll serve from the default document root
             let document_root = "./www";
-            
+
             let file_path = if path == "/" {
                 format!("{}/index.html", document_root)
             } else {
                 format!("{}{}", document_root, path)
             };
-            
+
             // Security: Prevent directory traversal
             if path.contains("..") {
                 return Ok(Response::builder()
@@ -109,7 +109,7 @@ impl Http2Handler {
                     )))
                     .unwrap());
             }
-            
+
             // Try to serve the file
             match tokio::fs::read(&file_path).await {
                 Ok(content) => {
@@ -147,7 +147,7 @@ impl Http2Handler {
                 .unwrap())
         }
     }
-    
+
     fn get_content_type(file_path: &str) -> &'static str {
         if file_path.ends_with(".html") || file_path.ends_with(".htm") {
             "text/html; charset=utf-8"
@@ -177,15 +177,15 @@ impl Http2Handler {
         response: Response<Full<Bytes>>,
     ) -> Result<()> {
         let (parts, body) = response.into_parts();
-        
+
         // Send response headers
         let response = Response::from_parts(parts, ());
         let mut stream = respond.send_response(response, false)?;
-        
+
         // Send body
         let body_bytes = body.collect().await?.to_bytes();
         stream.send_data(body_bytes, true)?;
-        
+
         Ok(())
     }
 
@@ -197,10 +197,10 @@ impl Http2Handler {
         // For plain HTTP/2 connections (h2c - HTTP/2 over cleartext)
         // This requires HTTP/1.1 upgrade mechanism
         info!("HTTP/2 cleartext connection attempt from {}", client_addr);
-        
+
         // For now, we'll just reject plain HTTP/2 connections
         // In a full implementation, we'd handle the HTTP/1.1 upgrade
-        
+
         Ok(())
     }
 }
