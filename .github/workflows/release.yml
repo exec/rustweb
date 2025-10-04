@@ -29,9 +29,6 @@ jobs:
           - target: aarch64-unknown-linux-musl
             os: ubuntu-latest
             cross: true
-          - target: x86_64-pc-windows-gnu
-            os: ubuntu-latest
-            cross: true
           - target: x86_64-apple-darwin
             os: macos-latest
             cross: false
@@ -76,10 +73,6 @@ jobs:
           cp target/${{ matrix.target }}/release/rustweb artifacts/rustweb-${{ matrix.target }}
           strip artifacts/rustweb-${{ matrix.target }} || true
 
-      - name: Copy binary (Windows)
-        if: contains(matrix.target, 'windows')
-        run: |
-          cp target/${{ matrix.target }}/release/rustweb.exe artifacts/rustweb-${{ matrix.target }}.exe
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
