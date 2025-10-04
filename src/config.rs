@@ -179,6 +179,7 @@ impl Default for SecurityConfig {
                 "HEAD".to_string(),
                 "PUT".to_string(),
                 "DELETE".to_string(),
+                "OPTIONS".to_string(),
             ],
             max_request_size: 10 * 1024 * 1024, // 10MB
         }
