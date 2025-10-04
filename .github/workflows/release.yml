@@ -272,14 +272,21 @@ jobs:
           getent passwd rustweb >/dev/null || useradd -r -g rustweb -s /sbin/nologin -d /var/lib/rustweb rustweb
           
           %post
-          %systemd_post rustweb.service
+          systemctl daemon-reload >/dev/null 2>&1 || :
+          systemctl enable rustweb.service >/dev/null 2>&1 || :
           chown -R rustweb:rustweb /var/lib/rustweb /var/log/rustweb
           
           %preun
-          %systemd_preun rustweb.service
+          if [ $1 -eq 0 ]; then
+              systemctl stop rustweb.service >/dev/null 2>&1 || :
+              systemctl disable rustweb.service >/dev/null 2>&1 || :
+          fi
           
           %postun
-          %systemd_postun_with_restart rustweb.service
+          systemctl daemon-reload >/dev/null 2>&1 || :
+          if [ $1 -ge 1 ]; then
+              systemctl try-restart rustweb.service >/dev/null 2>&1 || :
+          fi
           
           %files
           /usr/bin/rustweb
@@ -291,7 +298,7 @@ jobs:
           %attr(0755, rustweb, rustweb) %dir /var/log/rustweb
           
           %changelog
-          * \$CHANGELOG_DATE Builder <builder@rustweb.dev> - 0.1.0-1
+          * $CHANGELOG_DATE Builder <builder@rustweb.dev> - 0.1.0-1
           - Initial RPM package
           EOF
 
