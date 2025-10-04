@@ -7,7 +7,7 @@ use std::path::Path;
 #[cfg(test)]
 mod tests;
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
 pub struct Config {
     pub server: ServerConfig,
     pub logging: LoggingConfig,
@@ -123,18 +123,6 @@ pub struct LocationConfig {
     pub auth_basic_user_file: Option<String>,
 }
 
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            server: ServerConfig::default(),
-            logging: LoggingConfig::default(),
-            security: SecurityConfig::default(),
-            compression: CompressionConfig::default(),
-            upstream: HashMap::new(),
-            virtual_hosts: HashMap::new(),
-        }
-    }
-}
 
 impl Default for ServerConfig {
     fn default() -> Self {
@@ -249,7 +237,7 @@ impl Config {
             return Err(anyhow::anyhow!("max_connections must be greater than 0"));
         }
 
-        if self.server.worker_threads.map_or(false, |n| n == 0) {
+        if self.server.worker_threads == Some(0) {
             return Err(anyhow::anyhow!("worker_threads must be greater than 0"));
         }
 
@@ -276,6 +264,7 @@ impl Config {
             .collect()
     }
 
+    #[allow(dead_code)]
     pub fn quic_listen_addresses(&self) -> Result<Vec<SocketAddr>> {
         if let Some(ref quic_addresses) = self.server.listen_quic {
             quic_addresses

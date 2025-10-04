@@ -1,6 +1,8 @@
+#![allow(dead_code)]
+
 use bytes::Bytes;
 use http_body_util::Full;
-use hyper::{header, Response, StatusCode};
+use hyper::{Response, StatusCode};
 use std::collections::HashMap;
 
 pub struct ResponseBuilder {

@@ -4,16 +4,14 @@ use crate::logging::{AccessLogFormat, AccessLogger, LogEntry};
 use crate::metrics::MetricsCollector;
 use crate::proxy::ProxyHandler;
 use crate::security::SecurityHandler;
-use crate::server::response::{ErrorResponse, ResponseBuilder};
+use crate::server::response::ErrorResponse;
 use crate::server::static_files::StaticFileHandler;
 use anyhow::Result;
 use bytes::Bytes;
-use http_body_util::{BodyExt, Full};
-use hyper::{body::Incoming, Method, Request, Response, StatusCode, Uri};
-use std::collections::HashMap;
+use http_body_util::Full;
+use hyper::{body::Incoming, Request, Response};
 use std::net::SocketAddr;
 use std::sync::Arc;
-use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
 pub struct RequestHandler {
@@ -35,7 +33,7 @@ impl RequestHandler {
             let format = match config.logging.access_log_format.as_str() {
                 "json" => AccessLogFormat::Json,
                 "common" => AccessLogFormat::CommonLog,
-                "combined" | _ => AccessLogFormat::Combined, // Default to combined
+                _ => AccessLogFormat::Combined, // Default to combined
             };
             Some(AccessLogger::new(Some(access_log_path), format)?)
         } else {
@@ -137,7 +135,7 @@ impl RequestHandler {
         &self,
         req: Request<Incoming>,
         client_addr: SocketAddr,
-        request_id: Uuid,
+        _request_id: Uuid,
     ) -> Result<Response<Full<Bytes>>> {
         if !self.security_handler.check_method(req.method()) {
             return Ok(ErrorResponse::method_not_allowed().build());
@@ -221,8 +219,7 @@ impl RequestHandler {
     }
 
     fn matches_wildcard(&self, pattern: &str, host: &str) -> bool {
-        if pattern.starts_with("*.") {
-            let suffix = &pattern[2..];
+        if let Some(suffix) = pattern.strip_prefix("*.") {
             host.ends_with(suffix) && host.len() > suffix.len()
         } else {
             pattern == host

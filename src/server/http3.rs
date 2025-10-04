@@ -8,7 +8,9 @@ use crate::server::tls::TlsManager;
 
 pub struct Http3Server {
     config: Arc<Config>,
+    #[allow(dead_code)]
     request_handler: Arc<RequestHandler>,
+    #[allow(dead_code)]
     tls_manager: Arc<TlsManager>,
 }
 

@@ -1,11 +1,11 @@
+#![allow(dead_code)]
+
 use crate::config::Config;
 use anyhow::Result;
 use bytes::Bytes;
-use dashmap::DashMap;
-use governor::{Jitter, Quota, RateLimiter};
+use governor::{Quota, RateLimiter};
 use http_body_util::Full;
 use hyper::{Method, Response};
-use nonzero_ext::*;
 use std::net::SocketAddr;
 use std::sync::Arc;
 
@@ -27,7 +27,6 @@ impl SecurityHandler {
     pub fn new(config: Arc<Config>) -> Result<Self> {
         let rate_limiter = if config.security.enable_rate_limiting {
             use std::num::NonZeroU32;
-            use std::time::Duration;
 
             // Create a more restrictive quota for testing
             let rps = NonZeroU32::new(config.security.rate_limit_requests_per_second)

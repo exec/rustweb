@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 pub mod prometheus;
 
 use dashmap::DashMap;

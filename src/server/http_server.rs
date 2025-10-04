@@ -11,7 +11,6 @@ use signal_hook::consts::{SIGINT, SIGQUIT, SIGTERM};
 use signal_hook_tokio::Signals;
 use std::sync::Arc;
 use tokio::net::{TcpListener, TcpStream};
-use tokio::signal;
 use tracing::{error, info, warn};
 
 pub struct HttpServer {
@@ -211,7 +210,7 @@ impl HttpServer {
         #[cfg(unix)]
         {
             use futures::stream::StreamExt;
-            let mut signals = Signals::new(&[SIGTERM, SIGINT, SIGQUIT])
+            let mut signals = Signals::new([SIGTERM, SIGINT, SIGQUIT])
                 .expect("Failed to register signal handlers");
 
             while let Some(signal) = signals.next().await {

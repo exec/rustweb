@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use anyhow::{Context, Result};
 use std::fs;
 use std::path::Path;
@@ -90,7 +92,7 @@ impl CertificateGenerator {
 
     // Alternative pure-Rust implementation (for when openssl isn't available)
     #[allow(dead_code)]
-    async fn generate_self_signed_cert_rust(cert_path: &str, key_path: &str) -> Result<()> {
+    async fn generate_self_signed_cert_rust(_cert_path: &str, _key_path: &str) -> Result<()> {
         // This would use rcgen crate to generate certificates entirely in Rust
         // For now, we'll rely on openssl command as it's more universally available
         // and produces more standard certificates

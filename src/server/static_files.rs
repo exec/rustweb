@@ -10,6 +10,12 @@ use tracing::{debug, warn};
 
 pub struct StaticFileHandler;
 
+impl Default for StaticFileHandler {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl StaticFileHandler {
     pub fn new() -> Self {
         Self

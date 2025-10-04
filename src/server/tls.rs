@@ -1,5 +1,6 @@
+#![allow(dead_code)]
+
 use crate::config::SslConfig;
-use crate::ssl_cert_gen::CertificateGenerator;
 use anyhow::{Context, Result};
 use rustls::ServerConfig;
 use rustls_pemfile::{certs, pkcs8_private_keys};

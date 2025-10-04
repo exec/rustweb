@@ -17,6 +17,7 @@ impl CompressionHandler {
         Self { config }
     }
 
+    #[allow(dead_code)]
     pub async fn compress_response(
         &self,
         response: Response<Full<Bytes>>,

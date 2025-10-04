@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use crate::server::request_handler::RequestHandler;
 use anyhow::Result;
 use bytes::Bytes;
@@ -79,10 +81,10 @@ impl Http2Handler {
     }
 
     async fn handle_h2_request_direct(
-        handler: Arc<RequestHandler>,
+        _handler: Arc<RequestHandler>,
         parts: &http::request::Parts,
         _body_bytes: &[u8],
-        client_addr: std::net::SocketAddr,
+        _client_addr: std::net::SocketAddr,
     ) -> Result<Response<Full<Bytes>>> {
         let path = parts.uri.path();
         let method = &parts.method;
@@ -213,6 +215,12 @@ pub struct Http2PushHandler {
 }
 
 #[allow(dead_code)]
+impl Default for Http2PushHandler {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Http2PushHandler {
     pub fn new() -> Self {
         Self {

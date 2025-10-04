@@ -1,8 +1,9 @@
+#![allow(dead_code)]
+
 use crate::config::{Config, LoadBalancingMethod, UpstreamConfig};
 use crate::server::response::ErrorResponse;
 use anyhow::{Context, Result};
 use bytes::Bytes;
-use dashmap::DashMap;
 use http_body_util::{BodyExt, Full};
 use hyper::body::Incoming;
 use hyper::{Request, Response, Uri};
@@ -13,6 +14,7 @@ use std::time::{Duration, Instant};
 use tokio::time::timeout;
 
 pub struct ProxyHandler {
+    #[allow(dead_code)]
     config: Arc<Config>,
     upstreams: HashMap<String, Arc<UpstreamPool>>,
 }
@@ -68,7 +70,7 @@ impl ProxyHandler {
 
     pub async fn proxy_request(
         &self,
-        mut req: Request<Incoming>,
+        req: Request<Incoming>,
         proxy_pass: &str,
     ) -> Result<Response<Full<Bytes>>> {
         let upstream_pool = self

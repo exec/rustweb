@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use crate::metrics::MetricsCollector;
 use bytes::Bytes;
 use http_body_util::Full;

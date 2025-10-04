@@ -3,16 +3,17 @@ use anyhow::Result;
 use futures::stream::StreamExt;
 use signal_hook::consts::SIGHUP;
 use signal_hook_tokio::Signals;
-use std::path::Path;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use tracing::{error, info, warn};
+use tracing::{error, info};
 
+#[allow(dead_code)]
 pub struct ConfigManager {
     config: Arc<RwLock<Config>>,
     config_path: String,
 }
 
+#[allow(dead_code)]
 impl ConfigManager {
     pub fn new(config: Config, config_path: String) -> Self {
         Self {
@@ -33,18 +34,15 @@ impl ConfigManager {
         #[cfg(unix)]
         {
             let mut signals =
-                Signals::new(&[SIGHUP]).expect("Failed to register SIGHUP signal handler");
+                Signals::new([SIGHUP]).expect("Failed to register SIGHUP signal handler");
 
             tokio::spawn(async move {
                 while let Some(signal) = signals.next().await {
-                    match signal {
-                        SIGHUP => {
-                            info!("Received SIGHUP, reloading configuration...");
-                            if let Err(e) = Self::reload_config(&config, &config_path).await {
-                                error!("Failed to reload configuration: {}", e);
-                            }
+                    if signal == SIGHUP {
+                        info!("Received SIGHUP, reloading configuration...");
+                        if let Err(e) = Self::reload_config(&config, &config_path).await {
+                            error!("Failed to reload configuration: {}", e);
                         }
-                        _ => {}
                     }
                 }
             });
@@ -103,6 +101,7 @@ impl ConfigManager {
 }
 
 // Hot-reloadable configuration validation
+#[allow(dead_code)]
 impl Config {
     pub fn can_hot_reload(&self, new_config: &Config) -> Result<Vec<String>> {
         let mut warnings = Vec::new();

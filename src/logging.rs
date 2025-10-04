@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use anyhow::Result;
 use serde_json::json;
 use std::fs::OpenOptions;
@@ -106,6 +108,7 @@ impl AccessLogger {
     }
 }
 
+#[allow(dead_code)]
 pub struct LogRotator {
     base_path: String,
     max_size: u64,
