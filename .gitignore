@@ -28,10 +28,10 @@ test-env/
 run/
 pid/
 
-# Configuration overrides
+# Configuration overrides (but keep example configs: docker-config.toml, test_config.toml)
 *-config.toml
-docker-config.toml
-test_config.toml
+!docker-config.toml
+!test_config.toml
 
 # IDE and editor files
 .vscode/

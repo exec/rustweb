@@ -1,139 +1,124 @@
-# RustWeb - A High-Performance HTTP Server
+# RustWeb - Development Instructions for Claude Code
 
-RustWeb is a modern, high-performance HTTP server written in Rust, designed to replace nginx/httpd while following Linux philosophy principles: do one thing well, be composable, and prioritize simplicity.
+This file contains coding standards and project-specific guidance for Claude Code when working on the RustWeb project.
 
-## Project Goals
+## Project Overview
 
-### Core Principles (Linux Philosophy)
+RustWeb is a high-performance HTTP server written in Rust, designed as a modern alternative to nginx/httpd. See README.md for complete documentation and FEATURES.md for implementation status.
+
+## Coding Standards
+
+### Rust Conventions
+- Follow standard Rust formatting: always run `cargo fmt` before committing
+- Lint with `cargo clippy -- -D warnings` - warnings are not acceptable
+- Write comprehensive tests for new features
+- Use `cargo test` to verify all tests pass
+- Document public APIs with rustdoc comments
+
+### Code Organization
+- Keep modules focused and single-purpose
+- Use `src/lib.rs` for library code, `src/main.rs` only for CLI entry point
+- Place feature modules in their own directories under `src/`
+- Write integration tests in `tests/`, unit tests alongside code
+
+### Performance Considerations
+- Profile with `cargo bench` before and after optimizations
+- Use zero-copy I/O where possible (Bytes, references)
+- Prefer async/await over blocking operations
+- Keep allocations minimal in hot paths
+- Use `Arc` for shared immutable data, `DashMap` for concurrent collections
+
+### Security Requirements
+- Validate and sanitize all user inputs
+- Use Rust's type system to prevent security bugs
+- Never use `unsafe` without thorough review and documentation
+- Run `cargo audit` regularly for dependency vulnerabilities
+- Default to secure configurations (deny-by-default)
+
+### Configuration Management
+- All features should be configurable via TOML
+- Provide sensible defaults requiring minimal config
+- Validate configuration at startup and fail fast with clear errors
+- Support hot-reload for runtime-changeable settings
+
+### Error Handling
+- Use `anyhow::Result` for application errors
+- Use `thiserror` for custom error types
+- Log errors with appropriate levels (error, warn, info, debug)
+- Return meaningful error messages to help operators debug
+
+### Testing
+- Write unit tests for all business logic
+- Write integration tests for HTTP endpoints
+- Use `cargo test` for running all tests
+- Keep test coverage above 70% for critical paths
+
+### Commit Practices
+- Write clear, descriptive commit messages
+- Reference issue numbers where applicable
+- Keep commits focused on single changes
+- Run tests before committing
+
+## Architecture Guidelines
+
+### Core Principles
 - **Do one thing well**: Focus on HTTP serving excellence
 - **Composable**: Work seamlessly with other Unix tools
-- **Simple configuration**: Human-readable, version-controllable config files
-- **Fail fast**: Clear error messages and proper exit codes
-- **Scriptable**: All functionality accessible via CLI
+- **Linux philosophy**: Simple, scriptable, with proper exit codes
+- **Fail fast**: Clear error messages and validation
 
-### Performance Targets
-- Handle 100k+ concurrent connections (C10K+ problem)
-- Sub-millisecond response times for static content
-- Memory-efficient (target <50MB base memory usage)
-- Zero-copy I/O where possible
-- Efficient connection pooling and reuse
-
-## Feature Set
-
-### Phase 1: Core HTTP Server
-- [x] HTTP/1.1 compliant server
-- [x] Static file serving with proper MIME types
-- [x] Basic request routing
-- [x] Configuration file support (TOML)
-- [x] Comprehensive logging (access + error)
-- [x] Graceful shutdown/reload via signals
-
-### Phase 2: Essential Features
-- [x] Virtual hosts / server blocks
-- [x] Reverse proxy with upstream health checks
-- [x] SSL/TLS termination (rustls)
-- [x] Compression (gzip, brotli, zstd)
-- [x] Rate limiting and DDoS protection
-- [x] Basic security headers
-
-### Phase 3: Advanced Features  
-- [x] HTTP/2 support
-- [x] Load balancing algorithms
-- [x] WebSocket proxying
-- [x] Performance metrics and monitoring
-- [x] Hot configuration reload
-- [x] Request/response transformation
-
-### Phase 4: Operations
-- [ ] Systemd integration
-- [ ] Docker containerization
-- [ ] Prometheus metrics export
-- [ ] Health check endpoints
-- [ ] Configuration validation
-- [ ] Performance profiling tools
-
-## Architecture
-
-### Core Components
-- **Server Core**: Tokio-based async runtime with connection handling
-- **Config Manager**: TOML-based configuration with hot reload
-- **Router**: Fast request routing with pattern matching
-- **Upstream Manager**: Connection pooling and health checks for proxying
-- **Security Module**: Rate limiting, access control, security headers
-- **Compression Engine**: Multi-algorithm compression with content negotiation
-- **Logger**: Structured logging with configurable formats
-- **Metrics**: Performance monitoring and stats collection
-
-### Configuration Philosophy
-- Single configuration file (rustweb.toml)
-- Environment variable overrides
-- Configuration validation on startup
-- Hot reload without dropping connections
-- Sensible defaults requiring minimal configuration
-
-## Build Requirements
+### Module Structure
+- `server/` - Core HTTP handling and connection management
+- `config.rs` - Configuration parsing and validation
+- `proxy/` - Reverse proxy and load balancing
+- `security/` - Rate limiting and security headers
+- `compression/` - Response compression algorithms
+- `metrics/` - Performance monitoring and Prometheus export
 
 ### Dependencies
-- Rust 1.70+ (2021 edition)
-- Key crates: tokio, hyper, rustls, serde, clap, toml
-- Optional: jemalloc for memory management
+- Prefer well-maintained crates with active communities
+- Minimize dependency tree where possible
+- Keep Cargo.toml organized with comments for sections
+- Update dependencies regularly but carefully
 
-### Development Commands
-- `cargo run` - Start development server
-- `cargo test` - Run test suite
-- `cargo bench` - Performance benchmarks
-- `cargo clippy` - Linting
-- `cargo fmt` - Code formatting
+## When Making Changes
 
-### Deployment
-- Single static binary
-- No external dependencies
-- Configuration via `/etc/rustweb/rustweb.toml`
-- Logs to stdout/stderr (follows 12-factor principles)
+### Adding Features
+1. Update configuration schema if needed
+2. Implement feature with comprehensive error handling
+3. Add unit and integration tests
+4. Update FEATURES.md with status
+5. Document in README.md if user-facing
 
-## Security Considerations
+### Fixing Bugs
+1. Write a failing test that reproduces the bug
+2. Fix the bug
+3. Verify the test passes
+4. Add regression test if appropriate
 
-### Built-in Security
-- Memory safety (Rust guarantees)
-- No buffer overflows or use-after-free
-- Safe defaults for all configurations
-- Input validation and sanitization
-- Protection against common web attacks (XSS, CSRF headers)
+### Performance Work
+1. Profile with benchmarks (`cargo bench`)
+2. Make targeted optimizations
+3. Re-run benchmarks to verify improvement
+4. Document performance characteristics
 
-### Operational Security
-- Privilege dropping after binding ports
-- Chroot/namespace isolation support
-- Resource limits and quotas
-- Secure TLS configuration defaults
-- Regular security audits via cargo-audit
+## Build and Deployment
 
-## Performance Characteristics
+- Release builds use LTO and single codegen unit for maximum performance
+- Support systemd service deployment
+- Provide Docker containerization
+- Create .deb and .rpm packages for Linux distributions
+- Binary should have minimal dependencies for portability
 
-### Benchmarks (Target)
-- Static file serving: 50k+ RPS on commodity hardware
-- Reverse proxy: 30k+ RPS with upstream latency <1ms
-- Memory usage: <1MB per 1000 idle connections
-- CPU usage: <5% at 10k RPS on modern CPU
+## Signal Handling
+- SIGTERM/SIGINT: Graceful shutdown
+- SIGQUIT: Immediate shutdown
+- SIGHUP: Configuration reload (hot reload)
 
-### Optimizations
-- Zero-copy I/O with io_uring (Linux)
-- Connection pooling and reuse
-- Efficient parsing with minimal allocations
-- SIMD optimizations where applicable
-- Custom memory allocator (jemalloc/mimalloc)
+## Important Notes
 
-## Compatibility
-
-### Standards Compliance
-- HTTP/1.1 (RFC 7230-7235)
-- HTTP/2 (RFC 7540)
-- TLS 1.2/1.3 (RFC 5246, 8446)
-- WebSocket (RFC 6455)
-- Common MIME types
-
-### Drop-in Replacement
-- nginx-style configuration mapping
-- Common directive support
-- Similar log formats
-- Signal handling compatibility
-- Exit codes follow conventions
+- Never commit secrets, keys, or certificates to version control
+- Test files (test_results.json, etc.) should not be committed
+- Keep configuration examples (docker-config.toml, test_config.toml) for reference
+- Run security audits regularly: `cargo audit`
+- Follow semver for versioning
